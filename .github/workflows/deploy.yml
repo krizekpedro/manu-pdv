@@ -1,0 +1,49 @@
+name: Publicar no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Montar o site
+        run: |
+          set -e
+          VERSION="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          mkdir _site
+          cp index.html pwa.js sw.js manifest.webmanifest _site/
+          cp -r icons _site/
+          # Liga o modo aplicativo no index.html (se ainda não estiver ligado).
+          if ! grep -q 'pwa.js' _site/index.html; then
+            sed -i 's#</head>#<link rel="manifest" href="manifest.webmanifest">\n<meta name="theme-color" content="\#c97b8b">\n<link rel="icon" type="image/png" href="icons/favicon-32.png">\n<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">\n<script src="pwa.js" defer></script>\n</head>#' _site/index.html
+          fi
+          grep -q 'pwa.js' _site/index.html
+          # Carimba a versão: é isso que avisa os computadores da loja que há novidade.
+          sed -i "s/__VERSION__/${VERSION}/g" _site/sw.js
+          echo "$VERSION" > _site/version.txt
+          touch _site/.nojekyll
+          echo "Versão publicada: $VERSION"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
