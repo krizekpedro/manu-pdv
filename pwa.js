@@ -27,13 +27,23 @@
     return true;
   }
 
+  // Clique em "Atualizar agora": a pessoa pediu, então atualiza.
+  // O cupom aberto fica salvo no aparelho e volta igual depois de recarregar;
+  // só espera terminar de gravar os dados (no máximo alguns segundos).
+  function dataBusy() {
+    try { return (typeof saving !== 'undefined' && saving) || (typeof dirty !== 'undefined' && dirty); } catch (e) { return false; }
+  }
   function applyUpdate() {
-    if (!waitingWorker) return;
-    if (!safeToReload()) {
-      setBannerText('Termine a venda atual. A nova versão será aplicada logo depois.');
-      return;
-    }
-    waitingWorker.postMessage('SKIP_WAITING');
+    if (reloading) return;
+    setBannerText('Atualizando...');
+    let tries = 0;
+    const go = () => {
+      if (dataBusy() && tries++ < 20) { setTimeout(go, 250); return; }
+      if (waitingWorker) waitingWorker.postMessage('SKIP_WAITING');
+      // Se o navegador não trocar de versão sozinho em 3 s, recarrega mesmo assim.
+      setTimeout(() => { if (!reloading) { reloading = true; location.reload(); } }, 3000);
+    };
+    go();
   }
 
   function setBannerText(t) { if (banner) banner.querySelector('span').textContent = t; }
